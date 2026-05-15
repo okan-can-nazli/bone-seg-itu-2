@@ -26,8 +26,7 @@ BATCH_SIZE = 8
 #! Directorys
 
 # LOCAL DIRS
-IMAGE_DIR = "../Data/images"
-MASK_DIR = "../Data/masks"
+DATA_DIR = "path/to/new/dataset"
 OUTPUT_DIR = "unet_outputs"
 
 #KAGGLE DIRS
@@ -41,7 +40,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def main():
     
 
-    image_paths, mask_folders = build_file_lists(IMAGE_DIR, MASK_DIR)  # 499 matched image-mask pairs
+    image_paths, mask_folders = build_file_lists(DATA_DIR)  # 499 matched image-mask pairs
 
     kf = KFold(n_splits=5, shuffle=True, random_state=66) 
     # each fold: all 499 samples, ~400 train / ~100 val, different split each time, select random val and train sample EVERY FOLD 
@@ -79,8 +78,8 @@ def main():
         val_images   = [image_paths[i] for i in val_idx]
         val_masks    = [mask_folders[i] for i in val_idx]
 
-        train_dataset = BoneSegDataset(image_paths=train_images, mask_folders=train_masks, transform=train_transform)
-        val_dataset   = BoneSegDataset(image_paths=val_images, mask_folders=val_masks, transform=val_transform)
+        train_dataset = BoneSegDataset(image_paths=train_images, mask_paths=train_masks, transform=train_transform)
+        val_dataset   = BoneSegDataset(image_paths=val_images, mask_paths=val_masks, transform=val_transform)
 
         # batches into groups of 8 for training/validation
         train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -210,7 +209,7 @@ def main():
 
     from inference import visualize_predictions, save_results_chart
     save_results_chart(OUTPUT_DIR, results)
-    visualize_predictions(OUTPUT_DIR, IMAGE_DIR, MASK_DIR, best_fold_idx, worst_fold_idx) # here re-calculate outputs of the given folds cause we delete each fold after executed because of performance reasons
+    visualize_predictions(OUTPUT_DIR, DATA_DIR, DATA_DIR, best_fold_idx, worst_fold_idx) # here re-calculate outputs of the given folds cause we delete each fold after executed because of performance reasons
 
 if __name__ == "__main__":
     main()
