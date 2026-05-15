@@ -26,13 +26,17 @@ BATCH_SIZE = 8
 #! Directorys
 
 # LOCAL DIRS
-DATA_DIR = "path/to/new/dataset"
-OUTPUT_DIR = "unet_outputs"
+# DATA_DIR = "../Data"
+# OUTPUT_DIR = "unet_outputs"
 
 #KAGGLE DIRS
-# IMAGE_DIR = "/kaggle/input/datasets/okancannazli/bones-seg/New_Labels-20260504T191710Z-3-001/New_Labels"
-# MASK_DIR  = "/kaggle/input/datasets/okancannazli/bones-seg/New_masks-20260504T191902Z-3-001/New_masks"
-# OUTPUT_DIR = "/kaggle/working/outputs"
+DATA_DIR = "/kaggle/input/datasets/okancannazli/bone-seg-2/20250401 - ACB - 141"
+OUTPUT_DIR = "/kaggle/working/outputs"
+
+
+
+# IMAGE_DIR = "/kaggle/input/datasets/okancannazli/bones-seg-2/New_Labels-20260504T191710Z-3-001/New_Labels" 
+# MASK_DIR  = "/kaggle/input/datasets/okancannazli/bones-seg-2/New_masks-20260504T191902Z-3-001/New_masks"
 #########################################################################################################
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -40,7 +44,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def main():
     
 
-    image_paths, mask_folders = build_file_lists(DATA_DIR)  # 499 matched image-mask pairs
+    image_paths, mask_paths = build_file_lists(DATA_DIR)  # 499 matched image-mask pairs
 
     kf = KFold(n_splits=5, shuffle=True, random_state=66) 
     # each fold: all 499 samples, ~400 train / ~100 val, different split each time, select random val and train sample EVERY FOLD 
@@ -72,11 +76,11 @@ def main():
 
         # len = 400
         train_images = [image_paths[i] for i in train_idx] # each image
-        train_masks  = [mask_folders[i] for i in train_idx] # that image's mask fileS
+        train_masks  = [mask_paths[i] for i in train_idx] # that image's mask fileS
         
         # len = 100
         val_images   = [image_paths[i] for i in val_idx]
-        val_masks    = [mask_folders[i] for i in val_idx]
+        val_masks    = [mask_paths[i] for i in val_idx]
 
         train_dataset = BoneSegDataset(image_paths=train_images, mask_paths=train_masks, transform=train_transform)
         val_dataset   = BoneSegDataset(image_paths=val_images, mask_paths=val_masks, transform=val_transform)
