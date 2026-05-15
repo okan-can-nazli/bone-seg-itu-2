@@ -33,41 +33,36 @@ BATCH_SIZE = 8
 DATA_DIR = "/kaggle/input/datasets/okancannazli/bone-seg-2/20250401 - ACB - 141"
 OUTPUT_DIR = "/kaggle/working/outputs"
 
-
-
-# IMAGE_DIR = "/kaggle/input/datasets/okancannazli/bones-seg-2/New_Labels-20260504T191710Z-3-001/New_Labels" 
-# MASK_DIR  = "/kaggle/input/datasets/okancannazli/bones-seg-2/New_masks-20260504T191902Z-3-001/New_masks"
 #########################################################################################################
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def main():
-    
 
     image_paths, mask_paths = build_file_lists(DATA_DIR)  # 499 matched image-mask pairs
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=66) 
+    kf = KFold(n_splits=5, shuffle=True, random_state=66)
     # each fold: all 499 samples, ~400 train / ~100 val, different split each time, select random val and train sample EVERY FOLD 
     # Fold 1: 1-100 val, 101-499 train
     # Fold 2: 101-200 val, 1-100 + 201-499 train
     # ...
-    
-    
+
+
     # augmentation & normalize
     train_transform = Augment.Compose([
         Augment.HorizontalFlip(p=0.5),
         Augment.RandomRotate90(p=0.5),
         Augment.ShiftScaleRotate(p=0.3),
-        
+
         Augment.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
 
     # only normalize
     val_transform = Augment.Compose([
-    Augment.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ToTensorV2(),
-])
+        Augment.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
 
     results = []
 
@@ -76,14 +71,14 @@ def main():
 
         # len = 400
         train_images = [image_paths[i] for i in train_idx] # each image
-        train_masks  = [mask_paths[i] for i in train_idx] # that image's mask fileS
-        
+        train_masks  = [mask_paths[i] for i in train_idx]  # that image's mask files
+
         # len = 100
-        val_images   = [image_paths[i] for i in val_idx]
-        val_masks    = [mask_paths[i] for i in val_idx]
+        val_images = [image_paths[i] for i in val_idx]
+        val_masks  = [mask_paths[i] for i in val_idx]
 
         train_dataset = BoneSegDataset(image_paths=train_images, mask_paths=train_masks, transform=train_transform)
-        val_dataset   = BoneSegDataset(image_paths=val_images, mask_paths=val_masks, transform=val_transform)
+        val_dataset   = BoneSegDataset(image_paths=val_images,   mask_paths=val_masks,   transform=val_transform)
 
         # batches into groups of 8 for training/validation
         train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -93,27 +88,28 @@ def main():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model  = get_model().to(device)
 
+        if torch.cuda.device_count() > 1: # for kaggle's 2x gpu — splits each batch across both GPUs
+            model = torch.nn.DataParallel(model)
+
         optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4) # weight_decay to prevent overfitting (one feature focus)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCH, eta_min=1e-6) # reduce Learning rate at every epoch based on cosine func (min = 1e-6) (fast - mid - slow change rate)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCH, eta_min=1e-6) # reduce learning rate at every epoch based on cosine func (min = 1e-6) (fast - mid - slow change rate)
 
         best_dice = 0.0
         best_path = os.path.join(OUTPUT_DIR, f"fold{fold+1}_best.pth")
-        
-        #for visualation
+
+        # for visualization
         train_losses = []
         val_dices_per_epoch = []
 
         for epoch in range(EPOCH):
-            
+
             # --- TRAİNİNG ---
             train_loss = 0.0
             model.train()
 
-            
-            
             for images, masks in tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCH} Train"):
-                images  = images.to(device)
-                masks = masks.to(device)
+                images = images.to(device)
+                masks  = masks.to(device)
 
                 optimizer.zero_grad()
                 preds = model(images)
@@ -123,40 +119,38 @@ def main():
                 optimizer.step()
 
                 train_loss += loss.item()
-            
 
             # --- VALIDATİON ---
             model.eval()
             val_dices = []
-            # val_hd95s = [] 
 
             with torch.no_grad(): # dont calculate grad for validation phase
                 for images, masks in val_loader:
-                    images  = images.to(device)
-                    masks = masks.to(device)
-                    preds = model(images)
-                    preds = preds.squeeze(1)  # (B,1,H,W) → (B,H,W)
-                    
+                    images = images.to(device)
+                    masks  = masks.to(device)
+                    preds  = model(images)
+                    preds  = preds.squeeze(1)  # (B,1,H,W) → (B,H,W)
+
                     val_dices.append(dice_score(preds, masks).item())
-                    # val_hd95s.append(hd95(preds, masks)) # skipped: make the system slower
 
             mean_dice = np.mean(val_dices)
-            # mean_hd95 = np.mean(val_hd95s)
 
             print(f"Epoch {epoch+1} | Loss: {train_loss/len(train_loader):.4f} | Dice: {mean_dice:.4f}")
 
             if mean_dice > best_dice:
                 best_dice = mean_dice
-                torch.save(model.state_dict(), best_path)
+                # DataParallel wraps model in .module — unwrap before saving so checkpoint is always clean
+                state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
+                torch.save(state, best_path)
                 print(f"  ✓ Best model saved (Dice={best_dice:.4f})")
-                
+
             train_losses.append(train_loss / len(train_loader))
             val_dices_per_epoch.append(mean_dice)
             scheduler.step()
-            
-            
-        #visualation
-        
+
+
+        # visualization
+
         # Loss/Dice graph (mat plot lib)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
         ax1.plot(train_losses, label="Train Loss")
@@ -170,31 +164,39 @@ def main():
         plt.tight_layout()
         plt.savefig(os.path.join(OUTPUT_DIR, f"fold{fold+1}_metrics.png"), dpi=300)
         plt.close()
-        
-        
-        model.load_state_dict(torch.load(best_path)) # load best model checkpoint for HD95 evaluation (not the last epoch)
+
+
+        # load best model checkpoint for HD95 evaluation (not the last epoch)
+        # re-wrap with DataParallel if needed so inference runs on both GPUs
+        raw_model = get_model().to(device)
+        raw_model.load_state_dict(torch.load(best_path))
+        if torch.cuda.device_count() > 1:
+            model = torch.nn.DataParallel(raw_model)
+        else:
+            model = raw_model
         model.eval()
+
         fold_hd95s = []
-        
+
         with torch.no_grad():
             for images, masks in val_loader:
                 images = images.to(device)
-                masks = masks.to(device)
-                preds = model(images)
-                preds = preds.squeeze(1)  # (B,1,H,W) → (B,H,W)
+                masks  = masks.to(device)
+                preds  = model(images)
+                preds  = preds.squeeze(1)  # (B,1,H,W) → (B,H,W)
                 fold_hd95s.append(hd95(preds, masks))
+
         mean_hd95 = np.mean(fold_hd95s)
         print(f"Fold {fold+1} HD95: {mean_hd95:.2f}px")
-        
-        # free memory enf of the fold
+
+        # free memory end of the fold
         del model
         torch.cuda.empty_cache()
-        
+
         import gc
         gc.collect() # garbage collector
 
         results.append({"fold": fold+1, "best_dice": best_dice, "mean_hd95": mean_hd95})
-
 
 
     print("\n=== RESULTS ===")
@@ -206,9 +208,7 @@ def main():
     print(f"\nOverall: Dice={np.mean(dices):.4f} ± {np.std(dices):.4f}, HD95={np.mean(hd95s):.2f} ± {np.std(hd95s):.2f}px")
 
 
-
     # inference
-
     from inference import visualize_predictions, save_results_chart
     save_results_chart(OUTPUT_DIR, results)
     visualize_predictions(OUTPUT_DIR, DATA_DIR) # here re-calculate outputs of the given folds cause we delete each fold after executed because of performance reasons
