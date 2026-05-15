@@ -1,0 +1,8 @@
+=== RESULTS ===
+Fold 1: Dice=0.9418, HD95=3.52px
+Fold 2: Dice=0.9425, HD95=2.67px
+Fold 3: Dice=0.9368, HD95=8.36px
+Fold 4: Dice=0.9424, HD95=2.83px
+Fold 5: Dice=0.9324, HD95=4.63px
+
+Overall: Dice=0.9392 ± 0.0040, HD95=4.40 ± 2.09px

@@ -1,0 +1,10 @@
+Data/
+*.npy
+*.png
+*.jpg
+
+# Global ignore for Python cache
+__pycache__/
+*.py[cod]
+
+*.pth
