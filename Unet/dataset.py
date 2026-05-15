@@ -44,7 +44,7 @@ class BoneSegDataset(Dataset):
 
 ########################################################################################################################################
 
-
+# obtain merged mask files from .json files
 def load_merged_mask(json_path):
     with open(json_path) as f:
         data = json.load(f)
@@ -66,9 +66,11 @@ def build_file_lists(data_dir):
     image_paths = []
     mask_paths  = []
 
-    # sorted() provides consistent ordering
+    # sorted() provides consistent ordering (alphabetical this time because of dataset)
     for f in sorted(os.listdir(data_dir)):
         if f.lower().endswith((".jpg", ".jpeg", ".png")):
+            
+            # match image and mask files with same base name
             base = os.path.splitext(f)[0]
             json_file = os.path.join(data_dir, base + ".json")
 

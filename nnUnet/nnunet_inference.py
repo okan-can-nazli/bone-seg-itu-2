@@ -34,7 +34,7 @@ NNUNET_PREPROCESSED = os.path.join(BASE_DIR, "nnunet_preprocessed")
 NNUNET_RESULTS      = os.path.join(BASE_DIR, "nnunet_results")
 
 CONFIG  = "2d"
-TRAINER = "nnUNetTrainer"
+TRAINER = "nnUNetTrainer_250epochs"
 
 TEST_SPLIT = 0.2  # fraction of data to hold out as test set
 #########################################################################################################
