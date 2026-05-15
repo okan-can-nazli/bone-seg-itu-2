@@ -208,12 +208,10 @@ def main():
 
 
     # inference
-    best_fold_idx  = max(range(len(results)), key=lambda i: results[i]['best_dice'])
-    worst_fold_idx = min(range(len(results)), key=lambda i: results[i]['best_dice'])
 
     from inference import visualize_predictions, save_results_chart
     save_results_chart(OUTPUT_DIR, results)
-    visualize_predictions(OUTPUT_DIR, DATA_DIR, DATA_DIR, best_fold_idx, worst_fold_idx) # here re-calculate outputs of the given folds cause we delete each fold after executed because of performance reasons
+    visualize_predictions(OUTPUT_DIR, DATA_DIR) # here re-calculate outputs of the given folds cause we delete each fold after executed because of performance reasons
 
 if __name__ == "__main__":
     main()
