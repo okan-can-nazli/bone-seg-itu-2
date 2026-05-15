@@ -20,7 +20,7 @@ from metrics import dice_score, hd95
 #! Constants
 
 LEARNING_RATE = 1e-4
-EPOCH = 50
+EPOCH = 1000
 BATCH_SIZE = 8
 
 #! Directorys
