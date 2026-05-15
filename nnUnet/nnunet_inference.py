@@ -412,11 +412,9 @@ if __name__ == "__main__":
     # 1. install nnU-Net
     install_nnunet()
 
-    # 2. prepare data & get test case references
+    set_env()
     test_case_ids = prepare_nnunet_dataset()
 
-    # 3. set env vars
-    set_env()
 
     # 4. plan + preprocess
     run_nnunet_plan_and_preprocess()
