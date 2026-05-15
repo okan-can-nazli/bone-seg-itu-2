@@ -22,7 +22,7 @@ from metrics import dice_score, hd95
 #! Constants
 
 LEARNING_RATE = 1e-4
-EPOCH         = 250   # to match with default nn-Unet step value
+EPOCH         = 100   # to match with default nn-Unet step value
 BATCH_SIZE    = 8
 
 #! Directories
@@ -41,7 +41,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 RESULTS_CACHE = os.path.join(OUTPUT_DIR, "results_cache.json")  # persists fold results across sessions
 
-
+# fold saver for interruption
 def save_results(results):
     with open(RESULTS_CACHE, "w") as f:
         json.dump(results, f)
@@ -54,15 +54,15 @@ def load_results():
     return []
 
 
+
+
 def main():
 
-    image_paths, mask_paths = build_file_lists(DATA_DIR)  # 499 matched image-mask pairs
+    image_paths, mask_paths = build_file_lists(DATA_DIR)  # 141 matched image-mask pairs
 
     kf = KFold(n_splits=5, shuffle=True, random_state=66)
-    # each fold: all 499 samples, ~399 train / ~100 val
-    # Fold 1: 1-100 val,   101-499 train
-    # Fold 2: 101-200 val, 1-100 + 201-499 train
-    # ...
+    # each fold: all 141 samples, ~113 train / ~28 val
+
 
     # augmentation & normalize
     train_transform = Augment.Compose([
@@ -78,15 +78,20 @@ def main():
         Augment.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])
+    
+    
 
-    results        = load_results()                          # resume: load already-finished folds
-    finished_folds = {r["fold"] for r in results}            # set of completed fold numbers
+    results = load_results() # resume: load already-finished folds
+    finished_folds = {r["fold"] for r in results}# set of completed fold numbers
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(image_paths)):
 
-        if (fold + 1) in finished_folds:                     # skip already-completed folds
+
+        if (fold + 1) in finished_folds: # skip already-completed folds
             print(f"\n--- Fold {fold+1}/5 skipped (already done) ---")
             continue
+
+
 
         print(f"\n--- Fold {fold+1}/5 ---")
 
@@ -129,9 +134,9 @@ def main():
             raw.load_state_dict(ckpt["model"])
             optimizer.load_state_dict(ckpt["optimizer"])
             scheduler.load_state_dict(ckpt["scheduler"])
-            start_epoch         = ckpt["epoch"] + 1
-            best_dice           = ckpt["best_dice"]
-            train_losses        = ckpt["train_losses"]
+            start_epoch = ckpt["epoch"] + 1
+            best_dice = ckpt["best_dice"]
+            train_losses = ckpt["train_losses"]
             val_dices_per_epoch = ckpt["val_dices"]
             print(f"  ↺ Resumed from epoch {start_epoch} (best Dice so far: {best_dice:.4f})")
 
@@ -173,6 +178,7 @@ def main():
 
             if mean_dice > best_dice:
                 best_dice = mean_dice
+                
                 # DataParallel wraps model in .module — unwrap before saving so checkpoint is always clean
                 state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
                 torch.save(state, best_path)
