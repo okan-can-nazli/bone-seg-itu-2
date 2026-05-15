@@ -1,4 +1,4 @@
-# Converts PNG X-rays + NPY masks to nnU-Net NIfTI format (.nii.gz)
+# Converts PNG X-rays + JSON masks to nnU-Net NIfTI format (.nii.gz)
 # Used for Kaggle training — see: https://www.kaggle.com/code/okancannazli/nnu-net-bone-seg
 
 import os
@@ -18,29 +18,27 @@ DATASET_NAME = "BoneSeg"
 #! Directories
 
 # LOCAL DIRS
-# IMAGE_DIR  = "Data/images"
-# MASK_DIR   = "Data/masks"
+# DATA_DIR   = "Data"
 # OUTPUT_DIR = "nnunet_raw"
 
 # KAGGLE DIRS
-IMAGE_DIR  = "/kaggle/input/datasets/okancannazli/bones-seg/New_Labels-20260504T191710Z-3-001/New_Labels"
-MASK_DIR   = "/kaggle/input/datasets/okancannazli/bones-seg/New_masks-20260504T191902Z-3-001/New_masks"
+DATA_DIR   = "/kaggle/input/datasets/foxcancoy/bone-seg-2/Data"
 OUTPUT_DIR = "/kaggle/working/nnunet_raw"
 #########################################################################################################
 
 
 def main():
 
-    full_name = f"Dataset{DATASET_ID}_{DATASET_NAME}"
+    full_name  = f"Dataset{DATASET_ID}_{DATASET_NAME}"
     images_out = os.path.join(OUTPUT_DIR, full_name, "imagesTr")
     labels_out = os.path.join(OUTPUT_DIR, full_name, "labelsTr")
     os.makedirs(images_out, exist_ok=True)
     os.makedirs(labels_out, exist_ok=True)
 
-    image_paths, mask_folders = build_file_lists(IMAGE_DIR, MASK_DIR)
+    image_paths, mask_paths = build_file_lists(DATA_DIR)  # single data_dir, json masks alongside images
     print(f"Converting {len(image_paths)} samples to NIfTI...")
 
-    for idx, (img_path, mask_folder) in enumerate(zip(image_paths, mask_folders)):
+    for idx, (img_path, mask_path) in enumerate(zip(image_paths, mask_paths)):
         case_id = f"bone_{idx:04d}"
 
         # image: grayscale → (H, W, 1) NIfTI
@@ -53,7 +51,7 @@ def main():
         )
 
         # mask: merged binary → (H, W, 1) NIfTI
-        mask = load_merged_mask(mask_folder)
+        mask = load_merged_mask(mask_path)  # all polygons → single binary mask
         mask = cv2.resize(mask, (512, 512), interpolation=cv2.INTER_NEAREST)
         nib.save(
             nib.Nifti1Image(mask[:, :, np.newaxis].astype(np.uint8), np.eye(4)),
