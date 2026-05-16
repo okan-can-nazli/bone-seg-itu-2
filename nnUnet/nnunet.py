@@ -1,3 +1,9 @@
+# nnU-Net pipeline:
+# 1. analyze dataset (image size, class distribution)
+# 2. auto-configure patch size, batch size, network depth
+# 3. train 5 folds with built-in augmentation and normalization
+# 4. ensemble all 5 models at inference for better predictions
+
 import os
 import subprocess
 
