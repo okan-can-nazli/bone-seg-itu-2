@@ -60,6 +60,9 @@ def main():
 
     image_paths, mask_paths = build_file_lists(DATA_DIR)  # 141 matched image-mask pairs
 
+    # 141 samples split into 5 non-overlapping folds
+    # each sample appears in val set exactly once
+    # fold sizes: 4x28 + 1x29 = 141 (last fold gets the remainder)
     kf = KFold(n_splits=5, shuffle=True, random_state=66)
     # each fold: all 141 samples, ~113 train / ~28 val
 
@@ -119,7 +122,6 @@ def main():
 
         best_dice  = 0.0
         best_path  = os.path.join(OUTPUT_DIR, f"fold{fold+1}_best.pth")
-        ckpt_path  = os.path.join(OUTPUT_DIR, f"fold{fold+1}_resume.pth")  # mid-fold resume checkpoint
 
         # for visualization
         train_losses        = []
@@ -127,21 +129,7 @@ def main():
 
         start_epoch = 0
 
-        # resume mid-fold if checkpoint exists (e.g. session timed out mid-fold)
-        if os.path.exists(ckpt_path):
-            ckpt = torch.load(ckpt_path, map_location=device)
-            raw  = model.module if isinstance(model, torch.nn.DataParallel) else model
-            raw.load_state_dict(ckpt["model"])
-            optimizer.load_state_dict(ckpt["optimizer"])
-            scheduler.load_state_dict(ckpt["scheduler"])
-            start_epoch = ckpt["epoch"] + 1
-            best_dice = ckpt["best_dice"]
-            train_losses = ckpt["train_losses"]
-            val_dices_per_epoch = ckpt["val_dices"]
-            print(f"  ↺ Resumed from epoch {start_epoch} (best Dice so far: {best_dice:.4f})")
-
         for epoch in range(start_epoch, EPOCH):
-
             # --- TRAINING ---
             model.train()
             train_loss = 0.0
@@ -152,8 +140,8 @@ def main():
 
                 optimizer.zero_grad()
                 preds = model(images)
-                preds = preds.squeeze(1)       # (B,1,H,W) → (B,H,W)
-                loss  = bce_dice_loss(preds, masks)
+                preds = preds.squeeze(1) # (B,1,H,W) → (B,H,W)
+                loss  = bce_dice_loss(preds, masks) # loss calculation func
                 loss.backward()
                 optimizer.step()
 
@@ -188,19 +176,6 @@ def main():
             val_dices_per_epoch.append(mean_dice)
             scheduler.step()
 
-            # save resume checkpoint every 10 epochs so a timeout doesnt lose progress
-            if (epoch + 1) % 10 == 0:
-                raw   = model.module if isinstance(model, torch.nn.DataParallel) else model
-                state = raw.state_dict()
-                torch.save({
-                    "epoch":       epoch,
-                    "model":       state,
-                    "optimizer":   optimizer.state_dict(),
-                    "scheduler":   scheduler.state_dict(),
-                    "best_dice":   best_dice,
-                    "train_losses": train_losses,
-                    "val_dices":   val_dices_per_epoch,
-                }, ckpt_path)
 
 
         # Loss/Dice graph
@@ -217,7 +192,8 @@ def main():
         plt.savefig(os.path.join(OUTPUT_DIR, f"fold{fold+1}_metrics.png"), dpi=300)
         plt.close()
 
-        # load best model checkpoint for HD95 evaluation (not the last epoch)
+        # load best model checkpoint for HD95 evaluation otherwise we always assume the last epoch is the best one
+        
         # re-wrap with DataParallel if needed so inference runs on both GPUs
         raw_model = get_model().to(device)
         raw_model.load_state_dict(torch.load(best_path, map_location=device))
@@ -225,7 +201,8 @@ def main():
             model = torch.nn.DataParallel(raw_model)
         else:
             model = raw_model
-        model.eval()
+            
+        model.eval()  # disable dropout & batchnorm training behavior for inference
 
         fold_hd95s = []
 
@@ -245,10 +222,7 @@ def main():
         torch.cuda.empty_cache()
         gc.collect()
 
-        # remove resume checkpoint — fold is fully done
-        if os.path.exists(ckpt_path):
-            os.remove(ckpt_path)
-
+   
         results.append({"fold": fold + 1, "best_dice": best_dice, "mean_hd95": mean_hd95})
         save_results(results)  # persist immediately so a crash doesnt lose this fold
 

@@ -66,7 +66,7 @@ def build_file_lists(data_dir):
     image_paths = []
     mask_paths  = []
 
-    # sorted() provides consistent ordering (alphabetical this time because of dataset)
+    # sorted() provides consistent ordering (alphabetical this time because of the dataset)
     for f in sorted(os.listdir(data_dir)):
         if f.lower().endswith((".jpg", ".jpeg", ".png")):
             
