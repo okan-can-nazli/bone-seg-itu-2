@@ -60,6 +60,7 @@ def main():
 
     image_paths, mask_paths = build_file_lists(DATA_DIR)  # 141 matched image-mask pairs
 
+    #!
     # 141 samples split into 5 non-overlapping folds
     # each sample appears in val set exactly once
     # fold sizes: 4x28 + 1x29 = 141 (last fold gets the remainder)
